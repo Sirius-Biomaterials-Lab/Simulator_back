@@ -12,23 +12,28 @@ activate:
 ## Setup project
 setup: install activate
 
-## Pylint backend
-pylint:
-	pylint ./web/backend
-
-## Flake8 backend
-flake8:
-	flake8 ./web/backend
 
 ## Lint code
-lint: pylint flake8
+lint:
+	@echo "Linting code..."
+	poetry run ruff check $(SRC) --fix
 
-test:
-	@echo "Running tests..."
-	poetry run pytest tests/ -v
+## Format code using Black + isort
+format:
+	@echo "🎨 Formatting with black and isort..."
+	poetry run black $(SRC)
+	poetry run isort $(SRC)
 
-## Run tests
-tests: test
+## Check code style without fixing (flake8, mypy, black --check, isort --check)
+style-check:
+	@echo "🔍 Checking with flake8..."
+	poetry run flake8 $(SRC)
+	@echo "🧠 Type checking with mypy..."
+	poetry run mypy $(SRC)
+	@echo "🕵️ Black format check..."
+	poetry run black --check $(SRC)
+	@echo "🧹 isort check..."
+	poetry run isort --check $(SRC)
 
 ## Clean cache files
 clean:
@@ -37,27 +42,50 @@ clean:
 	find . -type d -name "__pycache__" -delete
 	rm -rf .pytest_cache
 
-stop-all-containers:
-	docker container stop $$(docker ps -a -q)
+test:
+	@echo "Running tests..."
+	poetry run pytest tests/ -v
 
-rm-all-containers:
-	docker container rm $$(docker ps -a -q)
+## Run tests
+tests: test
 
-rm-all-images:
-	docker image rm $$(docker images -a -q)
 
-rm-all: rm-all-containers rm-all-images
 
-frontend:
-	@echo "$$(tput bold)Starting frontend:$$(tput sgr0)"
-	docker-compose up -d
+# Start Docker containers
+docker-start:
+	docker compose start
+
+# Stop Docker containers
+docker-stop:
+	docker compose stop
+
+docker-up:
+	docker compose up -d
+
+docker-down:
+	docker compose down
+
+## Build containers
+docker-build:
+	docker compose build
+
+## Rebuild Docker containers
+docker-rebuild:
+	docker compose down -v
+	$(MAKE) docker-build
+	$(MAKE) docker-up
+
+# Remove project-related images
+docker-clean:
+	docker compose down --volumes --rmi all
+
+
 
 backend:
 	@echo "$$(tput bold)Starting backend:$$(tput sgr0)"
-	poetry run uvicorn semantic.backend.main:app --host localhost --reload --port 8000
+	poetry run uvicorn app.main:app --host localhost --reload --port 8000
 
-## Run docker
-run: frontend backend
+
 
 ## Show help
 help:
