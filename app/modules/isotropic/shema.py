@@ -1,21 +1,23 @@
-from typing import Optional, Literal, Union
+from typing import Optional, Literal, Union, List
 
 from fastapi import UploadFile, File, Form
 from pydantic import BaseModel, Field
+
+from app.modules.isotropic.solver import model_name_mapping,error_functions_name
 
 
 class IsotropicUploadRequest:
     def __init__(
             self,
-            hyperlastic_model: Literal["Модель Муни-Ривлина", "Модель Нэо-Хукена", "Модель Огдена"] = Form(
-                ..., description="Model file (.csv, .xls, .xlsx)"),
-            error_function: Literal["Квадратичная ошибка", "Абсолютная ошибка"] = Form(...,
-                                                                                       description="Hyperlastic model identifier"),
-            file: UploadFile = File(..., description="Error function name")
+            hyperlastic_model: Literal[*list(model_name_mapping.values())] = Form(
+                ..., description="Hyperlastic model identifier"),
+            error_function: Literal[*list(error_functions_name.values())] = Form(...,
+                                                                                          description="Error function name"),
+            files: List[UploadFile] = File(..., description="Model file (.csv, .xls, .xlsx)")
     ):
         self.hyperlastic_model = hyperlastic_model
         self.error_function = error_function
-        self.file = file
+        self.files = files
 
 
 class Line(BaseModel):
@@ -42,7 +44,7 @@ class Parameter(BaseModel):
 
 
 class IsotropicResponse(BaseModel):
-    status: str =  Field(default="error")
+    status: str = Field(default="error")
     detail: Optional[str] = None
 
 
