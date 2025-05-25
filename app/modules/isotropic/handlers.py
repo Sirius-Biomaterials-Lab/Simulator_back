@@ -99,8 +99,8 @@ async def delete_item(filename: str, server: ServiceDep):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.detail)
 
 
-@router.delete("/filename_data", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_item(filename: str, server: ServiceDep):
+@router.delete("/clear_data", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_item(server: ServiceDep):
 
     await server.clear_data()
 
