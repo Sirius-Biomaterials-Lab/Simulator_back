@@ -42,7 +42,7 @@ class Storage:
         self.storage[file.filename] = buffer
         logger.info(f"{file.filename} added in storage")
 
-    async def del_data(self, filename: str):
+    def del_data(self, filename: str):
         if filename in self.storage:
             del self.storage[filename]
 

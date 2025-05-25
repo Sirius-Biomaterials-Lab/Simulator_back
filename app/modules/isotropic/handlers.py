@@ -94,15 +94,14 @@ async def calculate_energy():
 @router.delete("/{filename}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_item(filename: str, server: ServiceDep):
     try:
-        await server.del_data(filename)
+        server.del_data(filename)
     except DataNotFound as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.detail)
 
 
 @router.delete("/clear_data", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_item(server: ServiceDep):
-
-    await server.clear_data()
+    server.clear_data()
 
 
 @router.get(

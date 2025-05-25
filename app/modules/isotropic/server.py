@@ -22,11 +22,11 @@ class Service:
     async def set_data(self, file: UploadFile):
         await self.storage.set_data(file)
 
-    async def del_data(self, filename: str):
-        await self.storage.del_data(filename=filename)
+    def del_data(self, filename: str):
+        self.storage.del_data(filename=filename)
 
-    async def clear_data(self):
-        await self.storage.clear()
+    def clear_data(self):
+        self.storage.clear_data()
 
     def fit(self):
         self._solver = self._setup_solver()
