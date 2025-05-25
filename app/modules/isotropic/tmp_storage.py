@@ -21,11 +21,11 @@ class Storage:
 
     def __new__(cls):
         if cls._instance is None:
+            cls._instance = super(Storage, cls).__new__(cls)
             cls._instance.data = pd.DataFrame()
             cls._instance.storage = {}
             hyperlastic_model_name: str
             error_function_name: str
-            cls._instance = super(Storage, cls).__new__(cls)
         return cls._instance
 
     def set_model_and_error_name(self, hyperlastic_model_name: str, error_function_name: str):
