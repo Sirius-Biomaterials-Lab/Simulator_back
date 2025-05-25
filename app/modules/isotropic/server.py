@@ -25,6 +25,9 @@ class Service:
     async def del_data(self, filename: str):
         await self.storage.del_data(filename=filename)
 
+    async def clear_data(self):
+        await self.storage.clear()
+
     def fit(self):
         self._solver = self._setup_solver()
         self._solver.fit_model()

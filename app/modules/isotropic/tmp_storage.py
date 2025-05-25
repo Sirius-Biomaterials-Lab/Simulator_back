@@ -21,11 +21,11 @@ class Storage:
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(Storage, cls).__new__(cls)
             cls._instance.data = pd.DataFrame()
             cls._instance.storage = {}
             hyperlastic_model_name: str
             error_function_name: str
+            cls._instance = super(Storage, cls).__new__(cls)
         return cls._instance
 
     def set_model_and_error_name(self, hyperlastic_model_name: str, error_function_name: str):
@@ -45,6 +45,11 @@ class Storage:
     async def del_data(self, filename: str):
         if filename in self.storage:
             del self.storage[filename]
+
+    def clear_data(self):
+        self.storage = {}
+        del self.hyperlastic_model_name
+        del self.error_function_name
 
     def get_data(self) -> Optional[pd.DataFrame]:
         data_frames = []
