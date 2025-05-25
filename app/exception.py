@@ -10,8 +10,8 @@ class TokenExpire(Exception):
     detail = 'Token expired'
 
 
-class TokenNotCorrect(Exception):
-    detail = 'Token not correct or expired'
+class DataNotCorrect(Exception):
+    detail = 'Data not correct'
 
 
 class DataNotFound(Exception):

@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Annotated
 
 import aiofiles
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import FileResponse, PlainTextResponse
 
 from app.exception import DataNotFound
@@ -29,7 +29,6 @@ async def upload_model(
         server: ServiceDep,
         body: IsotropicUploadRequest = Depends(),
 ):
-
     for file in body.files:
         if not file.filename.lower().endswith((".csv", ".xls", ".xlsx")):
             logger.warning("Unsupported file format: %s", file.filename)
@@ -42,6 +41,7 @@ async def upload_model(
     for file in body.files:
         await server.set_data(file)
 
+    logger.info('server.set_model_and_error_name')
     server.set_model_and_error_name(
         hyperlastic_model_name=body.hyperlastic_model,
         error_function_name=body.error_function)
@@ -56,22 +56,20 @@ async def upload_model(
              description="Runs fitting algorithm on the uploaded isotropic data.",
              )
 async def fit_model(server: ServiceDep):
-    # isotropic_service.fit()
+    return server.fit()
 
-    # a = random.randint(0, 1)
-    # if a:
 
-    server.fit()
-    return IsotropicFitResponse()
-    # else:
-    #     return IsotropicResponse(status="error", error='test_error')
+# return IsotropicFitResponse()
+# else:
+#     return IsotropicResponse(status="error", error='test_error')
 
 
 @router.post("/predict", response_model=IsotropicPredictResponse,
              description="Performs predictions based on the isotropic model with provided input data.",
              )
-async def predict_model(server: ServiceDep):
-    server.predict()
+async def predict_model(server: ServiceDep, file: UploadFile = File(..., )):
+
+    await server.predict(file)
     return IsotropicPredictResponse()
 
 
