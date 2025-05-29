@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     CACHE_HOST: str = "redis"
     CACHE_PORT: int = 6379
     CACHE_DB: int = 0
+    REDIS_PASSWORD: str = ""
 
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_REDIRECT_URI: str = ""
@@ -27,7 +28,6 @@ class Settings(BaseSettings):
     COOKIE_SESSION_ID_KEY: str = "web-app-session-id"
     COOKIE_TTL_SECONDS: int = 7200
     ISOTROPIC_TTL_SECONDS: int = 7200
-
 
     @property
     def db_url(self) -> str:
@@ -52,7 +52,7 @@ class Settings(BaseSettings):
         )
 
     class Config:
-        env_file = ".local.env"
+        env_file = ".env"
         # env_file = '.test.env'
 
 
