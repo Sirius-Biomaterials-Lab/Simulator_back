@@ -1,14 +1,16 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Tuple
 
 import numpy as np
+import pandas as pd
 import sympy as sp
 from scipy.optimize import minimize
 from sklearn.metrics import r2_score
 
 from app.logger import logger
-from app.modules.isotropic.shema import Line, PlotData, Parameter, Metric, IsotropicFitResponse
 from app.modules.isotropic.solver.hyperelastic_model import HyperelasticModel
+from app.modules.isotropic.solver.shema import Line, PlotData, Parameter, Metric, IsotropicFitResponse, \
+    IsotropicPredictResponse
 
 
 @dataclass
@@ -54,29 +56,25 @@ class StressCalculator:
         return sigma_11, sigma_22, sigma_33, p
 
 
+@dataclass
 class IsotropicSolver:
-    lambdas = np.ndarray[float]
-    experimental_data = np.ndarray[float]
+    lambdas: np.ndarray[float] = field(init=False)
+    experimental_data: np.ndarray[float] = field(init=False)
+    stress_calculator: StressCalculator = field(init=False)
     optimization_method: str = 'L-BFGS-B'
-    optimization_params: np.ndarray[float]
-    stress_calculator: StressCalculator
 
-    def __init__(self, data, error_function_name: str, error_function: Callable, hyperelastic_model: HyperelasticModel):
+    def set_up_solver(self, hyperelastic_model: HyperelasticModel):
         logger.info("Initializing symbolic derivatives...")
-        self.data = data
-        self.error_function_name = error_function_name
-        self.error_function = error_function
         self.hyperelastic_model = hyperelastic_model
-
         energy_func = self.hyperelastic_model.calculate()
         I1, I2 = sp.symbols('I1 I2')
         self.dW_dI1_func = sp.lambdify((I1, I2, *self.hyperelastic_model.params_sym), energy_func.dW_dI1_sym, 'numpy')
         self.dW_dI2_func = sp.lambdify((I1, I2, *self.hyperelastic_model.params_sym), energy_func.dW_dI2_sym, 'numpy')
         self.stress_calculator = StressCalculator(self.dW_dI1_func, self.dW_dI2_func)
-        self.lambdas = self.data[['lambda_x', 'lambda_y']].values
-        self.experimental_data = self.data[['stress_x_mpa', 'stress_y_mpa']].values
 
-    def fit_model(self):
+    def fit_model(self, data: pd.DataFrame, error_function: Callable):
+        self.lambdas = data[['lambda_x', 'lambda_y']].values
+        self.experimental_data = data[['stress_x_mpa', 'stress_y_mpa']].values
 
         init_params = np.full(len(self.hyperelastic_model.params_sym), 0.5)
 
@@ -85,7 +83,7 @@ class IsotropicSolver:
 
         logger.info("Starting optimization...")
         result = minimize(
-            self.error_function,
+            error_function,
             init_params,
             args=(self.lambdas, self.experimental_data, self.stress_calculator.compute),
             method=self.optimization_method,
@@ -93,23 +91,21 @@ class IsotropicSolver:
             constraints=constraints
         )
         logger.info("Optimization result: success=%s, params=%s", result.success, result.x)
-        self.optimization_params = result.x
+        return result.x
 
-    def graph_fit(self):
+    def graph_fit(self, optimization_params: np.ndarray):
         params = []
-        for value in self.optimization_params:
+        for value in optimization_params:
             params.append(Parameter(name='tmp', value=value))
 
-        sigma_model_11 = []
-        sigma_model_22 = []
-        sigma_exp_11 = []
-        sigma_exp_22 = []
+        sigma_model_11, sigma_model_22 = [], []
+        sigma_exp_11, sigma_exp_22 = [], []
 
         for lams, P_exp in zip(self.lambdas, self.experimental_data):
             lam1, lam2 = lams
             P11_exp, P22_exp = P_exp
 
-            s11_model, s22_model, _, _ = self.stress_calculator.compute(self.optimization_params, lam1, lam2, P22_exp)
+            s11_model, s22_model, _, _ = self.stress_calculator.compute(optimization_params, lam1, lam2, P22_exp)
             s11_exp = P11_exp * lam1
             s22_exp = P22_exp * lam2
 
@@ -130,7 +126,7 @@ class IsotropicSolver:
         metrics = self._calculate_metrics_r2(sigma_model_11, sigma_model_22, sigma_exp_11, sigma_exp_22)
 
         plot_data = PlotData(
-            name=f"{self.hyperelastic_model.model_name} fit ({self.error_function_name}), R²={1222.121212332:.2f}",
+            name=f"{self.hyperelastic_model.model_name}",
             x_label='Stretch λ',
             y_label='Stress (MPa)',
             lines=lines
@@ -139,6 +135,60 @@ class IsotropicSolver:
             metrics=metrics,
             parameters=params,
             plot_data=plot_data
+        )
+
+    def predict(self, prediction_data: pd.DataFrame, optimized_params: np.ndarray) -> IsotropicPredictResponse:
+        lam_x = prediction_data['lambda_x'].to_numpy()
+        lam_y = prediction_data['lambda_y'].to_numpy()
+        stress_x = prediction_data['stress_x_mpa'].to_numpy()
+        stress_y = prediction_data['stress_y_mpa'].to_numpy()
+
+        predicted_sigma_11, predicted_sigma_22 = [], []
+        exp_sigma_11, exp_sigma_22 = [], []
+
+        logger.info("Starting predict...")
+        logger.info(f"{optimized_params=}")
+        # Векторизованный проход по данным
+        for lam1, lam2, p_x, p_y in zip(lam_x, lam_y, stress_x, stress_y):
+            s11_model, s22_model, _, _ = self.stress_calculator.compute(optimized_params, lam1, lam2, p_y)
+            predicted_sigma_11.append(s11_model)
+            predicted_sigma_22.append(s22_model)
+            exp_sigma_11.append(p_x * lam1)
+            exp_sigma_22.append(p_y * lam2)
+
+        try:
+            r2_val_11 = r2_score(exp_sigma_11, predicted_sigma_11)
+        except ValueError:
+            r2_val_11 = float("nan")
+
+        try:
+            r2_val_22 = r2_score(exp_sigma_22, predicted_sigma_22)
+        except ValueError:
+            r2_val_22 = float("nan")
+
+        lines = [
+            Line(name="Exp σ11", x=lam_x.tolist(), y=exp_sigma_11),
+            Line(name="Pred σ11", x=lam_x.tolist(), y=predicted_sigma_11),
+            Line(name="Exp σ22", x=lam_y.tolist(), y=exp_sigma_22),
+            Line(name="Pred σ22", x=lam_y.tolist(), y=predicted_sigma_22),
+        ]
+
+        plot_data = PlotData(
+            name=f"{self.hyperelastic_model.model_name} - Prediction",
+            x_label='Stretch λ',
+            y_label='Stress (MPa)',
+            lines=lines
+        )
+
+        metrics = [
+            Metric(name="r2_σ11", value=r2_val_11),
+            Metric(name="r2_σ22", value=r2_val_22)
+        ]
+
+        return IsotropicPredictResponse(
+            status='ok',
+            plot_data=plot_data,
+            metrics=metrics
         )
 
     def _gent_constraint(self, params: np.ndarray) -> float:

@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     YANDEX_REDIRECT_URI: str = ""
     YANDEX_TOKEN_URL: str = "https://oauth.yandex.ru/token"
 
+    COOKIE_SESSION_ID_KEY: str = "web-app-session-id"
+    COOKIE_TTL_SECONDS: int = 7200
+    ISOTROPIC_TTL_SECONDS: int = 7200
+
 
     @property
     def db_url(self) -> str:

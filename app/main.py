@@ -5,10 +5,11 @@ from fastapi import FastAPI
 from starlette_context import plugins
 from starlette_context.middleware import RawContextMiddleware
 
+from app.auth import router as auth_router
 from app.logger import LOGGING_CONFIG, logger
 from app.modules import routers as models_router
 
-routers = [*models_router]
+routers = [*models_router, auth_router]
 
 app = FastAPI(docs_url='/swagger')
 

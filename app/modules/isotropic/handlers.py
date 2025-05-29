@@ -2,15 +2,17 @@ from pathlib import Path
 from typing import Annotated
 
 import aiofiles
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Cookie
 from fastapi.responses import FileResponse, PlainTextResponse
 
 from app.exception import DataNotFound
 from app.logger import logger
-from app.modules.isotropic.dependecy import get_service
+from app.modules.isotropic.isotropic_dependency import get_service
 from app.modules.isotropic.server import Service
-from app.modules.isotropic.shema import IsotropicResponse, IsotropicUploadRequest, IsotropicFitResponse, \
+from app.modules.isotropic.shema import IsotropicUploadRequest, IsotropicResponse
+from app.modules.isotropic.solver.shema import IsotropicFitResponse, \
     IsotropicPredictResponse
+from app.settings import settings
 
 router = APIRouter(prefix="/modules/isotropic", tags=["isotropic"])
 
@@ -28,6 +30,7 @@ ServiceDep = Annotated[Service, Depends(get_service)]
 async def upload_model(
         server: ServiceDep,
         body: IsotropicUploadRequest = Depends(),
+        session_id: str = Cookie(alias=settings.COOKIE_SESSION_ID_KEY),
 ):
     for file in body.files:
         if not file.filename.lower().endswith((".csv", ".xls", ".xlsx")):
@@ -39,12 +42,12 @@ async def upload_model(
             )
 
     for file in body.files:
-        await server.set_data(file)
+        await server.set_data(session_id, file)
 
     logger.info('server.set_model_and_error_name')
-    server.set_model_and_error_name(
-        hyperlastic_model_name=body.hyperlastic_model,
-        error_function_name=body.error_function)
+    await server.set_model_and_error_name(session_id,
+                                          hyperlastic_model_name=body.hyperlastic_model,
+                                          error_function_name=body.error_function)
 
     return IsotropicResponse(status="ok")
 
@@ -55,8 +58,11 @@ async def upload_model(
              },
              description="Runs fitting algorithm on the uploaded isotropic data.",
              )
-async def fit_model(server: ServiceDep):
-    return server.fit()
+async def fit_model(
+        server: ServiceDep,
+        session_id: str = Cookie(alias=settings.COOKIE_SESSION_ID_KEY),
+) -> IsotropicFitResponse:
+    return await server.fit(session_id)
 
 
 # return IsotropicFitResponse()
@@ -67,10 +73,13 @@ async def fit_model(server: ServiceDep):
 @router.post("/predict", response_model=IsotropicPredictResponse,
              description="Performs predictions based on the isotropic model with provided input data.",
              )
-async def predict_model(server: ServiceDep, file: UploadFile = File(..., )):
+async def predict_model(server: ServiceDep,
+                        file: UploadFile = File(..., ),
+                        session_id: str = Cookie(alias=settings.COOKIE_SESSION_ID_KEY)
+                        ):
 
-    await server.predict(file)
-    return IsotropicPredictResponse()
+    return await server.predict(session_id, file)
+    # return IsotropicPredictResponse()
 
 
 @router.get("/calculate_energy", response_class=PlainTextResponse,
@@ -92,16 +101,17 @@ async def calculate_energy():
 
 
 @router.delete("/{filename}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_item(filename: str, server: ServiceDep):
+async def delete_item(filename: str, server: ServiceDep,
+                      session_id: str = Cookie(alias=settings.COOKIE_SESSION_ID_KEY)):
     try:
-        server.del_data(filename)
+        await server.delete_data(session_id, filename)
     except DataNotFound as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.detail)
 
 
 @router.delete("/clear_data", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_item(server: ServiceDep):
-    server.clear_data()
+async def delete_item(server: ServiceDep, session_id: str = Cookie(alias=settings.COOKIE_SESSION_ID_KEY)):
+    await server.delete_all_data(session_id)
 
 
 @router.get(

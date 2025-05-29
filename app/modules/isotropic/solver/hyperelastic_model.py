@@ -16,9 +16,9 @@ def energy_model(func: Callable) -> Callable:
     Декоратор для унификации создания энергетических функций моделей
     """
 
-    def wrapper(self):
+    def wrapper(*args, **kwargs):
         logger.debug("Calculating energy function for model: %s", func.__name__)
-        return func(self)
+        return func(*args, **kwargs)
 
     return wrapper
 

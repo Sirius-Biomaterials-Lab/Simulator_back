@@ -1,9 +1,14 @@
+from fastapi import status
+
+
 class UserNotFoundException(Exception):
     detail = 'User not found'
 
 
-class UserNotCorrectPasswordException(Exception):
-    detail = 'Password is incorrect'
+class UserNotCorrectException(Exception):
+    status_code = status.HTTP_401_UNAUTHORIZED,
+    detail = "Invalid username or password",
+    headers = {"WWW-Authenticate": "Basic"},
 
 
 class TokenExpire(Exception):
