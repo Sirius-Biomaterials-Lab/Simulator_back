@@ -47,8 +47,8 @@ async def login_cookie(
         key=settings.COOKIE_SESSION_ID_KEY,
         value=session_id,
         httponly=True,
-        secure=True,
-        samesite="Strict",
+        # secure=True,
+        samesite="Lax",
         max_age=settings.COOKIE_TTL_SECONDS
     )
     return {"message": f"Welcome, {credentials.username}"}
