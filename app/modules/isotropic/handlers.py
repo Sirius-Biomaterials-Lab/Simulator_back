@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 from typing import Annotated
 
@@ -100,18 +101,20 @@ async def calculate_energy():
     return PlainTextResponse(content=data, media_type="text/plain")
 
 
-@router.delete("/{filename}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/clear_data", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_item(server: ServiceDep,
+                      session_id: str = Cookie(alias=settings.COOKIE_SESSION_ID_KEY)):
+    await server.delete_all_data(session_id)
+
+
+
+@router.delete("/file/{filename}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_item(filename: str, server: ServiceDep,
                       session_id: str = Cookie(alias=settings.COOKIE_SESSION_ID_KEY)):
     try:
         await server.delete_data(session_id, filename)
     except DataNotFound as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.detail)
-
-
-@router.delete("/clear_data", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_item(server: ServiceDep, session_id: str = Cookie(alias=settings.COOKIE_SESSION_ID_KEY)):
-    await server.delete_all_data(session_id)
 
 
 @router.get(

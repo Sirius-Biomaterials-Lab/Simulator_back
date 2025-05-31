@@ -9,7 +9,7 @@ from app.auth import router as auth_router
 from app.logger import LOGGING_CONFIG, logger
 from app.modules import routers as models_router
 
-routers = [*models_router, auth_router]
+routers = [auth_router, *models_router]
 
 app = FastAPI(docs_url='/swagger')
 

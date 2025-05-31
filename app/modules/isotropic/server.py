@@ -1,4 +1,3 @@
-import json
 from dataclasses import dataclass
 from io import BytesIO
 
@@ -34,7 +33,8 @@ class Service:
 
     #
     async def delete_all_data(self, session_id: str):
-        await self.isotropic_cache.del_all(session_id)
+        logger.info('aaaaaaaaaaaaaaaaaaaaaaa')
+        await self.isotropic_cache.del_all(session_id=session_id)
 
     async def fit(self, session_id: str) -> IsotropicFitResponse:
 

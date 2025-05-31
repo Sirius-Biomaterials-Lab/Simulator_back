@@ -60,10 +60,14 @@ class IsotropicCache:
         key_data = f"{self._key_prefix(session_id)}:isotropic_data"
         async with self.redis as redis:
             await redis.hdel(key_data, filename)
+            # проверка на существующий файл
 
     async def del_all(self, session_id: str) -> None:
         key_data = f"{self._key_prefix(session_id)}:isotropic_data"
         key_info = f"{self._key_prefix(session_id)}:isotropic_meta"
+        logger.info('qqqqqqqqqqqqqqqqqq')
         async with self.redis as redis:
-            await redis.hgetall(key_data)
-            await redis.hgetall(key_info)
+            logger.info('sssssssssssssssssssssssssssssssssssssssssssssss')
+            val1 = await redis.delete(key_data)
+            val2 = await redis.delete(key_info)
+            logger.info(f"{val1=},{val2=}")
