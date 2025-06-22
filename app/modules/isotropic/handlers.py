@@ -89,16 +89,21 @@ async def predict_model(server: ServiceDep,
                 404: {"model": IsotropicResponse, "description": "File not found"}
             }
             )
-async def calculate_energy():
-    test_file = Path("tests/test_data/test.energy")
-    if not test_file.exists():
+async def calculate_energy(
+        server: ServiceDep,
+        session_id: str = Cookie(alias=settings.COOKIE_SESSION_ID_KEY),
+):
+    try:
+        energy_text = await server.calculate_energy(session_id)
+        return PlainTextResponse(content=energy_text, media_type="text/plain")
+    except DataNotFound as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error calculating energy: {e}")
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Energy file not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error calculating energy"
         )
-    async with aiofiles.open(test_file, mode="r", encoding="utf-8") as f:
-        data = await f.read()
-    return PlainTextResponse(content=data, media_type="text/plain")
 
 
 @router.delete("/clear_data", status_code=status.HTTP_204_NO_CONTENT)

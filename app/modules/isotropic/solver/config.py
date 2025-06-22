@@ -7,8 +7,8 @@ model_name_mapping = bidict({
     'beda': 'Beda',
     'yeoh': 'Yeoh',
     'gent': 'Gent',
-    'gent_gent': 'Gent Gent',
-    'mod_gent_gent': 'Mod Gent Gent',
+    # 'gent_gent': 'Gent Gent',
+    # 'mod_gent_gent': 'Mod Gent Gent',
     'carroll': 'Carroll'
 })
 

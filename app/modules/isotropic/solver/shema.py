@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Optional
 
 import sympy as sp
 from pydantic import BaseModel, ConfigDict, Field
@@ -28,7 +28,7 @@ class PlotData(BaseModel):
 
 class Metric(BaseModel):
     name: str = Field(default="metric1")
-    value: float = Field(default=0.5)
+    value: Optional[float] = Field(default=0.5)
 
 
 class Parameter(BaseModel):

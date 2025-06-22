@@ -137,7 +137,8 @@ class HyperelasticModel:
         self.bounds = Bounds([0, 1e-6, 0], [np.inf] * 3)
         self.params_sym = sp.symbols('params0:3')
         mu, Jm, c2 = self.params_sym
-        W = -mu * Jm / 2 * sp.log(1 - (self.I1_sym - 3) / Jm) + c2 * sp.log(self.I2_sym / 3)
+        # W = -mu * Jm / 2 * sp.log(1 - (self.I1_sym - 3) / Jm) + c2 * sp.log(self.I2_sym / 3) #старая модель
+        W = -mu * Jm / 2 * sp.log(1 - (self.I1_sym - 3) / Jm)
         return EnergyFunction(
             W_sym=W,
             dW_dI1_sym=sp.diff(W, self.I1_sym),
@@ -162,7 +163,7 @@ class HyperelasticModel:
         self.bounds = Bounds([0, 0, 0], [np.inf] * 3)
         self.params_sym = sp.symbols('params0:3')
         A, B, C = self.params_sym
-        W = A * self.I1_sym + B * (self.I1_sym ** 4) + C * sp.sqrt(self.I2_sym)
+        W = A* self.I1_sym + B * (self.I1_sym ** 4) + C * sp.sqrt(self.I2_sym)
         return EnergyFunction(
             W_sym=W,
             dW_dI1_sym=sp.diff(W, self.I1_sym),
