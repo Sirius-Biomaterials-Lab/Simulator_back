@@ -57,7 +57,7 @@ class Service:
             raise DataNotCorrect
         all_data = pd.concat(data_frames, ignore_index=True)
 
-        hyperelastic_model, error_function = await self.isotropic_cache.get_model_params(session_id)
+        hyperelastic_model = await self.isotropic_cache.get_model_params(session_id)
         # error_function_callable = ErrorFunction.get_error_function(error_function)
         hyperelastic_model = HyperelasticModel(hyperelastic_model)
 
@@ -67,11 +67,10 @@ class Service:
         await self.isotropic_cache.set_optimization_params(session_id, optimization_params.tolist())
         return self.solver.graph_fit(optimization_params)
 
-    async def set_model_and_error_name(self, session_id: str, hyperlastic_model_name: str, error_function_name: str):
+    async def set_model_and_error_name(self, session_id: str, hyperlastic_model_name: str):
         await self.isotropic_cache.set_model_params(
             session_id,
             hyperelastic_model=hyperlastic_model_name,
-            error_function=error_function_name
         )
 
     async def predict(self, session_id: str, file: UploadFile):
@@ -87,7 +86,7 @@ class Service:
             raise DataNotCorrect
         await file.seek(0)
 
-        hyperelastic_model, _ = await self.isotropic_cache.get_model_params(session_id)
+        hyperelastic_model = await self.isotropic_cache.get_model_params(session_id)
         hyperelastic_model = HyperelasticModel(hyperelastic_model)
         self.solver.set_up_solver(hyperelastic_model)
 
@@ -108,7 +107,7 @@ class Service:
 
     async def calculate_energy(self, session_id: str) -> str:
         try:
-            hyperelastic_model, _ = await self.isotropic_cache.get_model_params(session_id)
+            hyperelastic_model = await self.isotropic_cache.get_model_params(session_id)
             optimization_params = await self.isotropic_cache.get_optimization_params(session_id)
             optimization_params = np.array(optimization_params, dtype=np.float32)
             logger.info(hyperelastic_model, optimization_params)

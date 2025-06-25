@@ -123,9 +123,8 @@ class IsotropicSolver:
             predicted_sigma_22.append(p22)
 
         try:
-            r2_val_11 = self._calculate_metrics_r2(stress_x[uniaxial_mask], np.array(predicted_sigma_11)[uniaxial_mask],
+            r2_val_11 = self._calculate_metrics_r2(stress_x, np.array(predicted_sigma_11),
                                                    'R²(P_xx)')
-            r2_val_11 = 0 if r2_val_11 is None else r2_val_11
         except ValueError:
             r2_val_11 = Metric(name='R²(P_xx)', value=None)
 

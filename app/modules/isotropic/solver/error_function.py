@@ -3,7 +3,7 @@ from typing import Callable, Dict
 import numpy as np
 
 from app.logger import logger
-from app.modules.isotropic.solver import error_functions_name
+
 
 
 

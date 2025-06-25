@@ -45,8 +45,8 @@ async def upload_model(
 
     logger.info('server.set_model_and_error_name')
     await server.set_model_and_error_name(session_id,
-                                          hyperlastic_model_name=body.hyperlastic_model,
-                                          error_function_name=body.error_function)
+                                          hyperlastic_model_name=body.hyperlastic_model)
+                                          # error_function_name=body.error_function)
 
     return IsotropicResponse(status="ok")
 
