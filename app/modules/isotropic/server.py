@@ -1,9 +1,11 @@
+import os
+import tempfile
 from dataclasses import dataclass
 from io import BytesIO
 
 import numpy as np
 import pandas as pd
-from fastapi import UploadFile, HTTPException
+from fastapi import UploadFile, HTTPException, BackgroundTasks
 
 from app.exception import DataNotCorrect, DataNotFound
 from app.logger import logger
@@ -65,16 +67,6 @@ class Service:
         await self.isotropic_cache.set_optimization_params(session_id, optimization_params.tolist())
         return self.solver.graph_fit(optimization_params)
 
-    async def calculate_energy(self, session_id: str) -> str:
-        try:
-            hyperelastic_model, _ = await self.isotropic_cache.get_model_params(session_id)
-            optimization_params = await self.isotropic_cache.get_optimization_params(session_id)
-            optimization_params = np.array(optimization_params, dtype=np.float32)
-            logger.info(hyperelastic_model, optimization_params)
-            return energy_text(name=hyperelastic_model, params=optimization_params)
-        except (AttributeError, TypeError):
-            raise DataNotFound("Model or optimization parameters not found. Please fit the model first.")
-
     async def set_model_and_error_name(self, session_id: str, hyperlastic_model_name: str, error_function_name: str):
         await self.isotropic_cache.set_model_params(
             session_id,
@@ -102,6 +94,27 @@ class Service:
         optimization_params = await self.isotropic_cache.get_optimization_params(session_id)
         optimization_params = np.array(optimization_params, dtype=np.float32)
         return self.solver.predict(data, optimization_params)
+
+    async def download_energy(self, session_id: str, background_tasks: BackgroundTasks) -> str:
+        energy_text = await self.calculate_energy(session_id)
+
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=".energy", encoding="utf-8") as temp_file:
+            temp_file.write(energy_text)
+            temp_file_path = temp_file.name
+
+        background_tasks.add_task(os.remove, temp_file_path)
+
+        return temp_file_path
+
+    async def calculate_energy(self, session_id: str) -> str:
+        try:
+            hyperelastic_model, _ = await self.isotropic_cache.get_model_params(session_id)
+            optimization_params = await self.isotropic_cache.get_optimization_params(session_id)
+            optimization_params = np.array(optimization_params, dtype=np.float32)
+            logger.info(hyperelastic_model, optimization_params)
+            return energy_text(name=hyperelastic_model, params=optimization_params)
+        except (AttributeError, TypeError):
+            raise DataNotFound("Model or optimization parameters not found. Please fit the model first.")
 
     @staticmethod
     def _check_file(filename: str, content: bytes) -> BytesIO:

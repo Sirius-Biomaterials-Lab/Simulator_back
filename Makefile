@@ -26,6 +26,7 @@ format:
 
 ## Check code style without fixing (flake8, mypy, black --check, isort --check)
 style-check:
+
 	@echo "🔍 Checking with flake8..."
 	poetry run flake8 $(SRC)
 	@echo "🧠 Type checking with mypy..."

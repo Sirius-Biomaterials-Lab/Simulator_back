@@ -1,11 +1,9 @@
-import sys
-from pathlib import Path
 from typing import Annotated
 
-import aiofiles
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Cookie
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Cookie, BackgroundTasks
 from fastapi.responses import FileResponse, PlainTextResponse
 
+from app.auth.handlers import get_session_data
 from app.exception import DataNotFound
 from app.logger import logger
 from app.modules.isotropic.isotropic_dependency import get_service
@@ -15,7 +13,7 @@ from app.modules.isotropic.solver.shema import IsotropicFitResponse, \
     IsotropicPredictResponse
 from app.settings import settings
 
-router = APIRouter(prefix="/modules/isotropic", tags=["isotropic"])
+router = APIRouter(prefix="/modules/isotropic", tags=["isotropic"], dependencies=[Depends(get_session_data)])
 
 ServiceDep = Annotated[Service, Depends(get_service)]
 
@@ -83,6 +81,15 @@ async def predict_model(server: ServiceDep,
     # return IsotropicPredictResponse()
 
 
+@router.delete("/file/{filename}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_item(filename: str, server: ServiceDep,
+                      session_id: str = Cookie(alias=settings.COOKIE_SESSION_ID_KEY)):
+    try:
+        await server.delete_data(session_id, filename)
+    except DataNotFound as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.detail)
+
+
 @router.get("/calculate_energy", response_class=PlainTextResponse,
             responses={
                 200: {"content": {"text/plain": {}}},
@@ -112,16 +119,6 @@ async def delete_item(server: ServiceDep,
     await server.delete_all_data(session_id)
 
 
-
-@router.delete("/file/{filename}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_item(filename: str, server: ServiceDep,
-                      session_id: str = Cookie(alias=settings.COOKIE_SESSION_ID_KEY)):
-    try:
-        await server.delete_data(session_id, filename)
-    except DataNotFound as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.detail)
-
-
 @router.get(
     "/download_energy",
     response_class=FileResponse,
@@ -131,18 +128,25 @@ async def delete_item(filename: str, server: ServiceDep,
         404: {"model": IsotropicResponse, "description": "File not found"},
     }
 )
-async def download_energy():
+async def download_energy(
+        background_tasks: BackgroundTasks,
+        server: ServiceDep,
+        session_id: str = Cookie(alias=settings.COOKIE_SESSION_ID_KEY),
+):
     """
-    Endpoint to download the .energy file as a binary attachment.
+    Endpoint to generate and download the .energy file as a binary attachment.
     """
-    test_file = Path("tests/test_data/test.energy")
-    if not test_file.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Energy file not found"
+    try:
+        temp_file_path = await server.download_energy(session_id, background_tasks)
+
+        return FileResponse(
+            path=temp_file_path,
+            filename="energy.energy",
+            media_type="application/octet-stream",
         )
-    return FileResponse(
-        path=str(test_file),
-        filename=test_file.name,
-        media_type="application/octet-stream",
-    )
+    except Exception as e:
+        logger.error(f"Error creating or downloading energy file: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error creating or downloading energy file"
+        )
