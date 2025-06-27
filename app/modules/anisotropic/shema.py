@@ -1,33 +1,39 @@
-from typing import Literal, List, Optional
+from typing import Optional, List, Literal
+from typing import Union
 
-from fastapi import UploadFile, File, Form
-from pydantic import BaseModel, Field
+from fastapi import UploadFile, Form, File
+from pydantic import BaseModel, confloat
+from pydantic import Field, field_validator
 
 
-class AnisotropicUploadRequest:
-    """Request model for uploading anisotropic data files"""
+class AnisotropicUploadRequest(BaseModel):
+    model_type: Literal["GOH", "HOG"]
+    alpha: Optional[confloat(ge=0.0, le=3.14159)] = None
+    kappa: Optional[confloat(ge=0.0, le=1 / 3)] = None
+    files: List[UploadFile]
 
-    def __init__(
-            self,
-            model_type: Literal["GOH", "HOG"] = Form(
-                ..., description="Anisotropic model type (GOH or HOG)"
-            ),
-            kappa: Optional[float] = Form(
-                None, description="Fixed kappa value (0 to 1/3). If None, will be optimized",
-                ge=0.0, le=1 / 3
-            ),
-            alpha: Optional[float] = Form(
-                None, description="Fixed alpha value in radians (0 to π). If None, will be optimized",
-                ge=0.0, le=3.14159
-            ),
-            files: List[UploadFile] = File(
-                ..., description="Data files (.csv format)"
-            )
+    @field_validator('alpha', 'kappa', mode='before')
+    @classmethod
+    def empty_str_to_none(cls, v):
+        if v == "":
+            return None
+        return v
+
+    @classmethod
+    def as_form(
+            cls,
+            model_type: Literal["GOH", "HOG"] = Form(...),
+
+            alpha: Union[float, None, str] = Form(None),
+            kappa: Union[float, None, str] = Form(None),
+            files: List[UploadFile] = File(...)
     ):
-        self.model_type = model_type
-        self.kappa = kappa
-        self.alpha = alpha
-        self.files = files
+        return cls(
+            model_type=model_type,
+            alpha=float(alpha) if alpha else None,
+            kappa=float(kappa) if kappa else None,
+            files=files
+        )
 
 
 class AnisotropicResponse(BaseModel):

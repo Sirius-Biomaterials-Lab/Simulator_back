@@ -31,19 +31,6 @@ class AnisotropicConstants:
         'alpha': np.pi / 4,
     }
 
-    # Required columns in input data
-    REQUIRED_COLUMNS = ['lambda1', 'PE1', 'lambda2', 'PE2']
-
-    # Alternative column names mapping
-    COLUMN_MAPPING = {
-        'lam1': 'lambda1',
-        'lam2': 'lambda2',
-        'p1': 'PE1',
-        'p2': 'PE2',
-        'stress1': 'PE1',
-        'stress2': 'PE2',
-    }
-
     # Convergence criteria
     CONVERGENCE_TOLERANCE = 1e-9
     MAX_ITERATIONS = 1000
@@ -56,25 +43,38 @@ class AnisotropicModelConfig:
     """Configuration for specific anisotropic models"""
 
     @classmethod
-    def get_parameter_bounds(cls) -> List[Tuple[float, float]]:
+    def get_parameter_bounds(cls, alpha: bool, kappa: bool) -> List[Tuple[float, float]]:
         """Get parameter bounds for optimization"""
+        bound = AnisotropicConstants.DEFAULT_BOUNDS
         bounds = [
-            AnisotropicConstants.DEFAULT_BOUNDS['mu'],
-            AnisotropicConstants.DEFAULT_BOUNDS['k1'],
-            AnisotropicConstants.DEFAULT_BOUNDS['k2'],
+            bound['mu'],
+            bound['k1'],
+            bound['k2'],
         ]
+
+        if not alpha:
+            bounds.append(bound['alpha'])
+        if not kappa:
+            bounds.append(bound['kappa'])
 
         return bounds
 
     @classmethod
-    def get_initial_parameters(cls) -> List[float]:
+    def get_initial_parameters(cls, alpha: bool, kappa: bool) -> List[float]:
         """Get initial parameter values for optimization"""
+
+        values = AnisotropicConstants.DEFAULT_INITIAL_VALUES
+
         initial = [
-            AnisotropicConstants.DEFAULT_INITIAL_VALUES['mu'],
-            AnisotropicConstants.DEFAULT_INITIAL_VALUES['k1'],
-            AnisotropicConstants.DEFAULT_INITIAL_VALUES['k2'],
+            values['mu'],
+            values['k1'],
+            values['k2'],
         ]
 
+        if not alpha:
+            initial.append(values['alpha'])
+        if not kappa:
+            initial.append(values['kappa'])
         return initial
 
 

@@ -29,7 +29,7 @@ ServiceDep = Annotated[AnisotropicService, Depends(get_anisotropic_service)]
              description="Uploads model files (.csv) for anisotropic processing with GOH or HOG models.")
 async def upload_model(
         service: ServiceDep,
-        body: AnisotropicUploadRequest = Depends(),
+        body: AnisotropicUploadRequest = Depends(AnisotropicUploadRequest.as_form),
         session_id: str = Cookie(alias=settings.COOKIE_SESSION_ID_KEY),
 ):
     """Upload data files and set model configuration for anisotropic analysis"""

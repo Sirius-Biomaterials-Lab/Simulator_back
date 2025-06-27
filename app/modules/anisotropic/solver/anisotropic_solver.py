@@ -20,8 +20,8 @@ from app.modules.anisotropic.solver.parameter_optimizer import ParameterOptimize
 class AnisotropicSolverConfig:
     """Configuration for anisotropic solver"""
     model_type: AnisotropicModelType
-    kappa: float
-    alpha: float
+    kappa: Optional[float]
+    alpha: Optional[float]
 
 
 class AnisotropicSolver:
@@ -47,8 +47,8 @@ class AnisotropicSolver:
         # Optimize parameters
         self._optimization_result = self.optimizer.optimize(
             data,
+            self.config.alpha,
             self.config.kappa,
-            self.config.alpha
         )
 
         if not self._optimization_result.success:

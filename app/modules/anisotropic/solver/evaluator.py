@@ -41,7 +41,7 @@ class ModelEvaluator:
         p11_pred, p22_pred = self._compute_predictions(lam1_exp, lam2_exp, params)
 
         # Calculate metrics
-        print(p11_exp, p11_pred)
+
         r2_p11 = self._safe_r2_score(p11_exp, p11_pred)
         r2_p22 = self._safe_r2_score(p22_exp, p22_pred)
 

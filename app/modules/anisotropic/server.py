@@ -151,8 +151,8 @@ class AnisotropicService:
         model_type = AnisotropicModelType(config_data['model_type'])
         solver_config = AnisotropicSolverConfig(
             model_type=model_type,
-            kappa=config_data.get('fixed_kappa'),
-            alpha=config_data.get('fixed_alpha')
+            kappa=config_data.get('kappa'),
+            alpha=config_data.get('alpha')
         )
 
         solver = AnisotropicSolver(solver_config)

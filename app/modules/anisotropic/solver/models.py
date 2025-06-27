@@ -1,10 +1,14 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Optional
 
-import numpy as np
+# import numpy as np
+import autograd.numpy as np
 
 from app.modules.anisotropic.solver.config import AnisotropicModelType
+
+
+# import autograd.numpy as anp
 
 
 @dataclass
@@ -13,25 +17,34 @@ class ModelParameters:
     mu: float
     k1: float
     k2: float
+    alpha: Optional[float]
+    kappa: Optional[float]
 
     def to_dict(self) -> Dict[str, float]:
         """Convert to dictionary"""
         return {
             'mu': self.mu,
             'k1': self.k1,
-            'k2': self.k2
+            'k2': self.k2,
+            'alpha': self.alpha,
+            'kappa': self.kappa
         }
 
     @classmethod
-    def from_array(cls, params: np.ndarray) -> 'ModelParameters':
+    def from_array(cls, params: np.ndarray, alpha: Optional[float] = None,
+                   kappa: Optional[float] = None) -> 'ModelParameters':
         """Create from parameter array"""
 
         mu = params[0]
         k1 = params[1]
         k2 = params[2]
-
-
-        return cls(mu=mu, k1=k1, k2=k2)
+        try:
+            alpha = params[3]
+            kappa = params[4]
+        except IndexError:
+            alpha = alpha
+            kappa = kappa
+        return cls(mu=mu, k1=k1, k2=k2, alpha=alpha, kappa=kappa)
 
 
 class AnisotropicModel(ABC):
@@ -103,9 +116,7 @@ class GOHModel(AnisotropicModel):
         exp_term = np.exp(params.k2 * E ** 2)
 
         # Second Piola-Kirchhoff stress
-        S2 = (params.mu * I +
-              2 * params.k1 * exp_term * E *
-              (params.kappa * I + (1 - 3 * params.kappa) * M))
+        S2 = params.mu * I + 2 * params.k1 * exp_term * E * (params.kappa * I + (1 - 3 * params.kappa) * M)
 
         # Hydrostatic pressure from incompressibility
         p = S2[2, 2] / invC[2, 2]
