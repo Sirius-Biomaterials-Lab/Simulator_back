@@ -4,8 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File,
 from fastapi.responses import FileResponse, PlainTextResponse
 
 from app.auth.handlers import get_session_data
-from app.exception import DataNotFound
+from app.exception import DataNotFound, DataNotCorrect
 from app.logger import logger
+from app.modules.exception import UnsupportedFormatFile
 from app.modules.isotropic.isotropic_dependency import get_service
 from app.modules.isotropic.server import Service
 from app.modules.isotropic.shema import IsotropicUploadRequest, IsotropicResponse
@@ -31,22 +32,19 @@ async def upload_model(
         body: IsotropicUploadRequest = Depends(),
         session_id: str = Cookie(alias=settings.COOKIE_SESSION_ID_KEY),
 ):
-    for file in body.files:
-        if not file.filename.lower().endswith((".csv", ".xls", ".xlsx")):
-            logger.warning("Unsupported file format: %s", file.filename)
-
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Unsupported format. Use .xls, .xlsx or .csv"
-            )
 
     for file in body.files:
-        await server.set_data(session_id, file)
+        try:
+            await server.set_data(session_id, file)
+        except DataNotCorrect as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.detail)
+        except UnsupportedFormatFile as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.detail)
 
-    logger.info('server.set_model_and_error_name')
     await server.set_model_and_error_name(session_id,
                                           hyperlastic_model_name=body.hyperlastic_model)
-                                          # error_function_name=body.error_function)
+
+    # error_function_name=body.error_function)
 
     return IsotropicResponse(status="ok")
 

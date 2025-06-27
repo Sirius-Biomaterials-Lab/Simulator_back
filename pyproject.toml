@@ -1,12 +1,12 @@
 [tool.poetry]
-name = "grant-rsf"
+name = "grant-back"
 version = "0.1.0"
 description = ""
 authors = ["AliRN <ali_ramazanov_2000@mail.ru>"]
 #readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.12"
 numpy = "^2.0.1"
 matplotlib = "^3.8.2"
 fastapi = { extras = ["standard"], version = "^0.115.4" }
@@ -25,6 +25,7 @@ starlette-context = "^0.4.0"
 pandas = "^2.2.3"
 scikit-learn = "^1.6.1"
 openpyxl = "^3.1.5"
+autograd = "^1.6.2"
 
 
 

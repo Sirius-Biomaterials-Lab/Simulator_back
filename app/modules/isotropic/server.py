@@ -5,10 +5,11 @@ from io import BytesIO
 
 import numpy as np
 import pandas as pd
-from fastapi import UploadFile, HTTPException, BackgroundTasks
+from fastapi import UploadFile, BackgroundTasks
 
 from app.exception import DataNotCorrect, DataNotFound
 from app.logger import logger
+from app.modules.exception import UnsupportedFormatFile
 from app.modules.isotropic.energy import energy_text
 from app.modules.isotropic.isotropic_cache import IsotropicCache
 from app.modules.isotropic.solver import IsotropicSolver, HyperelasticModel
@@ -20,14 +21,9 @@ class Service:
     solver: IsotropicSolver
     isotropic_cache: IsotropicCache
 
-    # _solver: IsotropicSolver
-
-    def data_collection(self):
-        pass
-
     async def set_data(self, session_id: str, file: UploadFile):
         content = await file.read()
-        content = self._check_file(file.filename, content)
+        content = self._validate_and_process_file(file.filename, content)
         await file.seek(0)
         await self.isotropic_cache.set_file_data(session_id, file.filename, content)
 
@@ -75,7 +71,7 @@ class Service:
 
     async def predict(self, session_id: str, file: UploadFile):
         content = await file.read()
-        content = self._check_file(file.filename, content)
+        content = self._validate_and_process_file(file.filename, content)
         await file.seek(0)
 
         if file.filename.endswith('.csv'):
@@ -116,49 +112,45 @@ class Service:
             raise DataNotFound("Model or optimization parameters not found. Please fit the model first.")
 
     @staticmethod
-    def _check_file(filename: str, content: bytes) -> BytesIO:
+    def _validate_and_process_file(filename: str, content: bytes) -> BytesIO:
+
         buffer = BytesIO(content)
-        try:
-            if filename.endswith('.csv'):
-                data = pd.read_csv(buffer)
-            elif filename.endswith(('.xls', '.xlsx')):
-                data = pd.read_excel(buffer)
-            else:
-                raise HTTPException(status_code=400, detail="Неподдерживаемый формат файла")
 
-            if "lambda_y" not in data.columns:  # свободное сужение
-                data["lambda_y"] = data["lambda_x"] ** -0.5
-            if "stress_y_mpa" not in data.columns:
-                data["stress_y_mpa"] = 0.0
+        if filename.endswith('.csv'):
+            data = pd.read_csv(buffer)
+        elif filename.endswith(('.xls', '.xlsx')):
+            data = pd.read_excel(buffer)
+        else:
+            raise UnsupportedFormatFile(detail="Неподдерживаемый формат файла")
 
-            # Валидация содержимого
-            required_columns = ['lambda_x', 'lambda_y', 'stress_x_mpa', 'stress_y_mpa']
-            missing_columns = [col for col in required_columns if col not in data.columns]
+        if "lambda_y" not in data.columns:  # свободное сужение
+            data["lambda_y"] = data["lambda_x"] ** -0.5
+        if "stress_y_mpa" not in data.columns:
+            data["stress_y_mpa"] = 0.0
 
-            if missing_columns:
-                raise DataNotCorrect(f"Отсутствуют необходимые колонки в данных: {missing_columns}")
+        # Валидация содержимого
+        required_columns = ['lambda_x', 'lambda_y', 'stress_x_mpa', 'stress_y_mpa']
+        missing_columns = [col for col in required_columns if col not in data.columns]
 
-            if data[required_columns].empty:
-                raise DataNotCorrect("Один или несколько массивов данных пусты")
+        if missing_columns:
+            raise DataNotCorrect(f"Отсутствуют необходимые колонки в данных: {missing_columns}")
 
-            if not all(data[required_columns].apply(
-                    lambda s: pd.to_numeric(s, errors='coerce').notnull().all())):
-                raise DataNotCorrect("Колонки содержат нечисловые значения")
+        if data[required_columns].empty:
+            raise DataNotCorrect("Один или несколько массивов данных пусты")
 
-            # buffer — ваш исходный BytesIO
-            buffer.seek(0)  # возвращаем курсор в начало
-            buffer.truncate()  # обрезаем всё содержимое
+        if not all(data[required_columns].apply(
+                lambda s: pd.to_numeric(s, errors='coerce').notnull().all())):
+            raise DataNotCorrect("Колонки содержат нечисловые значения")
 
-            if filename.endswith('.csv'):
-                data.to_csv(buffer, index=False, encoding='utf-8')
-            else:
-                with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                    data.to_excel(writer, index=False)
+        # buffer — ваш исходный BytesIO
+        buffer.seek(0)  # возвращаем курсор в начало
+        buffer.truncate()  # обрезаем всё содержимое
 
-            buffer.seek(0)
-            return buffer.getvalue()
+        if filename.endswith('.csv'):
+            data.to_csv(buffer, index=False, encoding='utf-8')
+        else:
+            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                data.to_excel(writer, index=False)
 
-
-        except DataNotCorrect as ve:
-            logger.warning(f"Ошибка в данных: {ve}")
-            raise HTTPException(status_code=400, detail=str(ve))
+        buffer.seek(0)
+        return buffer.getvalue()
