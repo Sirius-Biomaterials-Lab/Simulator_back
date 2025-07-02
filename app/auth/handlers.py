@@ -43,6 +43,7 @@ async def login_cookie(
     key = f"{SESSION_PREFIX}{session_id}"
 
     await redis.set(key, credentials.username, ex=settings.COOKIE_TTL_SECONDS)
+
     response.set_cookie(
         key=settings.COOKIE_SESSION_ID_KEY,
         value=session_id,

@@ -1,19 +1,19 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
 
 import numpy as np
 import pandas as pd
 
-from app.exception import DataNotCorrect
 from app.logger import logger
 from app.modules.anisotropic.shema import (
     AnisotropicFitResponse, AnisotropicPredictResponse, AnisotropicParameterValue,
     AnisotropicPlotData, AnisotropicPlotLine
 )
-from app.modules.anisotropic.solver.config import AnisotropicModelType, AnisotropicConstants
+from app.modules.anisotropic.solver.config import AnisotropicModelType
 from app.modules.anisotropic.solver.evaluator import ModelEvaluator
-from app.modules.anisotropic.solver.models import ModelFactory
-from app.modules.anisotropic.solver.parameter_optimizer import ParameterOptimizer
+from app.modules.anisotropic.solver.models import ModelFactory, AnisotropicModel, ModelParameters
+from app.modules.anisotropic.solver.optimizer import ParameterOptimizer, OptimizationResult
+from app.modules.solver import ModuleSolver
 
 
 @dataclass
@@ -24,35 +24,37 @@ class AnisotropicSolverConfig:
     alpha: Optional[float]
 
 
-class AnisotropicSolver:
+@dataclass
+class AnisotropicSolver(ModuleSolver):
     """Main solver for anisotropic hyperelastic models following SOLID principles"""
+    config: AnisotropicSolverConfig = field(init=False)
+    model: AnisotropicModel = field(init=False)
+    optimizer: ParameterOptimizer = field(init=False)
+    evaluator: ModelEvaluator = field(init=False)
+    _optimization_result: OptimizationResult = field(init=False)
+    _fitted_parameters: ModelParameters = field(init=False)
 
-    def __init__(self, config: AnisotropicSolverConfig):
+    # Storage for fitted parametersкак
+
+    def setup_solver(self, config: AnisotropicSolverConfig):
         self.config = config
         self.model = ModelFactory.create_model(config.model_type)
         self.optimizer = ParameterOptimizer(self.model)
         self.evaluator = ModelEvaluator(self.model)
 
-        # Storage for fitted parameters
-        self._fitted_parameters = None
-        self._optimization_result = None
-
-    def fit(self, data: np.ndarray) -> AnisotropicFitResponse:
+    def fit(self, data: pd.DataFrame) -> AnisotropicFitResponse:
         """Fit the anisotropic model to data"""
         logger.info(f"Starting fit for {self.model.get_model_name()} model")
 
-        # Combine and validate data
-
-
         # Optimize parameters
         self._optimization_result = self.optimizer.optimize(
-            data,
+            data.to_numpy(dtype=float),
             self.config.alpha,
             self.config.kappa,
         )
 
         if not self._optimization_result.success:
-            logger.warning(f"Optimization failed: {self._optimization_result.message}")
+            logger.error(f"Optimization failed: {self._optimization_result.message}")
 
         self._fitted_parameters = self._optimization_result.parameters
 
@@ -66,47 +68,43 @@ class AnisotropicSolver:
         plot_data = self._create_fit_plot_data(data)
 
         return AnisotropicFitResponse(
-            status="ok" if self._optimization_result.success else "warning",
-            model_type=self.config.model_type.value,
+            status="ok" if self._optimization_result.success else "error",
             parameters=parameters,
             metrics=metrics,
             plot_data=plot_data,
-            convergence_info=self._optimization_result.convergence_info
+            # convergence_info=self._optimization_result.convergence_info
         )
 
-    def predict(self, prediction_data: pd.DataFrame) -> AnisotropicPredictResponse:
+    def predict(self, prediction_data: pd.DataFrame, optimized_params) -> AnisotropicPredictResponse:
+
         """Make predictions using fitted model"""
-        if self._fitted_parameters is None:
+        if optimized_params is None:
             raise ValueError("Model must be fitted before making predictions")
+        self._fitted_parameters = optimized_params
 
         logger.info("Making predictions with fitted model")
 
-
-
         # Evaluate on prediction data
         metrics = self.evaluator.evaluate_to_metrics(prediction_data, self._fitted_parameters)
-
+        logger.info(f'metrics: {metrics}:')
         # Generate plot data
         plot_data = self._create_prediction_plot_data(prediction_data)
 
         # Create detailed predictions
-        predictions = self._create_detailed_predictions(prediction_data)
+        # predictions = self._create_detailed_predictions(prediction_data)
 
         return AnisotropicPredictResponse(
             status="ok",
-            model_type=self.config.model_type.value,
             metrics=metrics,
             plot_data=plot_data,
-            predictions=predictions
+            # predictions=predictions
         )
 
-    def get_fitted_parameters(self) -> Optional[Dict[str, float]]:
+    def get_optimization_result(self) -> Optional[OptimizationResult]:
         """Get fitted parameters as dictionary"""
-        if self._fitted_parameters is None:
+        if self._optimization_result is None:
             return None
-        return self._fitted_parameters.to_dict()
-
-
+        return self._optimization_result
 
     def _create_parameter_response(self) -> List[AnisotropicParameterValue]:
         """Create parameter response for API"""
@@ -125,16 +123,17 @@ class AnisotropicSolver:
 
         return params
 
-    def _create_fit_plot_data(self, data: np.ndarray) -> AnisotropicPlotData:
+    def _create_fit_plot_data(self, data: pd.DataFrame) -> AnisotropicPlotData:
         """Create plot data for fit results"""
+
         # Extract experimental data
-        lam1_exp = data[:, 0]
-        lam2_exp = data[:, 2]
-        p11_exp = data[:, 1]
-        p22_exp = data[:, 3]
+        lam1_exp = data.iloc[:, 0].to_numpy(dtype=float)
+        lam2_exp = data.iloc[:, 2].to_numpy(dtype=float)
+        p11_exp = data.iloc[:, 1].to_numpy(dtype=float)
+        p22_exp = data.iloc[:, 3].to_numpy(dtype=float)
 
         # Compute model predictions
-        p11_pred, p22_pred = self.evaluator._compute_predictions(
+        p11_pred, p22_pred = self.evaluator.compute_predictions(
             lam1_exp, lam2_exp, self._fitted_parameters
         )
 
@@ -143,29 +142,25 @@ class AnisotropicSolver:
                 name="Experimental P11",
                 x=lam1_exp.tolist(),
                 y=p11_exp.tolist(),
-                line_type="markers",
-                color="red"
+
             ),
             AnisotropicPlotLine(
                 name=f"Model P11 ({self.config.model_type.value})",
                 x=lam1_exp.tolist(),
                 y=p11_pred.tolist(),
-                line_type="lines",
-                color="red"
+
             ),
             AnisotropicPlotLine(
                 name="Experimental P22",
                 x=lam2_exp.tolist(),
                 y=p22_exp.tolist(),
-                line_type="markers",
-                color="blue"
+
             ),
             AnisotropicPlotLine(
                 name=f"Model P22 ({self.config.model_type.value})",
                 x=lam2_exp.tolist(),
                 y=p22_pred.tolist(),
-                line_type="lines",
-                color="blue"
+
             ),
         ]
 
@@ -176,8 +171,9 @@ class AnisotropicSolver:
             lines=lines
         )
 
-    def _create_prediction_plot_data(self, data: np.ndarray) -> AnisotropicPlotData:
+    def _create_prediction_plot_data(self, data: pd.DataFrame) -> AnisotropicPlotData:
         """Create plot data for predictions"""
+        logger.info("Create plot data for predictions")
         return self._create_fit_plot_data(data)  # Same format for now
 
     def _create_detailed_predictions(self, data: np.ndarray) -> List[Dict[str, Any]]:
@@ -187,7 +183,7 @@ class AnisotropicSolver:
         p11_exp = data[:, 1]
         p22_exp = data[:, 3]
 
-        p11_pred, p22_pred = self.evaluator._compute_predictions(
+        p11_pred, p22_pred = self.evaluator.compute_predictions(
             lam1_exp, lam2_exp, self._fitted_parameters
         )
 

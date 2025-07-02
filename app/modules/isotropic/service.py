@@ -1,44 +1,26 @@
-import os
-import tempfile
 from dataclasses import dataclass
 from io import BytesIO
 
 import numpy as np
 import pandas as pd
-from fastapi import UploadFile, BackgroundTasks
+from fastapi import UploadFile
 
 from app.exception import DataNotCorrect, DataNotFound
 from app.logger import logger
 from app.modules.exception import UnsupportedFormatFile
-from app.modules.isotropic.energy import energy_text
-from app.modules.isotropic.isotropic_cache import IsotropicCache
-from app.modules.isotropic.solver import IsotropicSolver, HyperelasticModel
+from app.modules.isotropic.energy import EnergyInfo
+from app.modules.isotropic.solver import IsotropicModelType
 from app.modules.isotropic.solver.shema import IsotropicFitResponse
+from app.modules.service import ModuleService
 
 
 @dataclass
-class Service:
-    solver: IsotropicSolver
-    isotropic_cache: IsotropicCache
-
-    async def set_data(self, session_id: str, file: UploadFile):
-        content = await file.read()
-        content = self._validate_and_process_file(file.filename, content)
-        await file.seek(0)
-        await self.isotropic_cache.set_file_data(session_id, file.filename, content)
-
-    async def delete_data(self, session_id: str, filename: str):
-        await self.isotropic_cache.del_file_data(session_id=session_id, filename=filename)
-
-    #
-    async def delete_all_data(self, session_id: str):
-        await self.isotropic_cache.del_all(session_id=session_id)
-        logger.info('Delete all data')
+class IsotropicService(ModuleService):
 
     async def fit(self, session_id: str) -> IsotropicFitResponse:
 
         data_frames = []
-        filename_to_bytes = await self.isotropic_cache.get_files_data(session_id)
+        filename_to_bytes = await self.module_cache.get_files_data(session_id)
         # logger.info(f"filename_to_bytes: {filename_to_bytes}")
         for filename, bytes_data in reversed(filename_to_bytes.items()):
 
@@ -53,21 +35,28 @@ class Service:
             raise DataNotCorrect
         all_data = pd.concat(data_frames, ignore_index=True)
 
-        hyperelastic_model = await self.isotropic_cache.get_model_params(session_id)
-        # error_function_callable = ErrorFunction.get_error_function(error_function)
-        hyperelastic_model = HyperelasticModel(hyperelastic_model)
+        params: dict = await self.module_cache.get_model_params(session_id)
+        logger.info(f"{params=}")
+        isotropic_model = IsotropicModelType(params['hyperelastic_model'])
+        self.solver.setup_solver(isotropic_model)
 
-        self.solver.set_up_solver(hyperelastic_model)
         # optimization_params: np.ndarray[float] = self.solver.fit_model(all_data, error_function_callable)
-        optimization_params: np.ndarray[float] = self.solver.fit_model(all_data)
-        await self.isotropic_cache.set_optimization_params(session_id, optimization_params.tolist())
-        return self.solver.graph_fit(optimization_params)
+        optimization_result = self.solver.fit(all_data)
 
-    async def set_model_and_error_name(self, session_id: str, hyperlastic_model_name: str):
-        await self.isotropic_cache.set_model_params(
-            session_id,
-            hyperelastic_model=hyperlastic_model_name,
-        )
+        optimization_info = {
+            'success': optimization_result.success,
+            'fitted_params': optimization_result.parameters,
+            'iterations': optimization_result.iterations,
+            'message': optimization_result.message,
+        }
+        await self.module_cache.set_optimization_params(session_id,
+                                                        optimization_info)
+        return self.solver.graph_fit()
+
+    async def set_model_parameters(self, session_id: str, hyperlastic_model_name: str):
+        params = {"hyperelastic_model": hyperlastic_model_name}
+        await self.module_cache.set_model_params(
+            session_id, params)
 
     async def predict(self, session_id: str, file: UploadFile):
         content = await file.read()
@@ -82,37 +71,28 @@ class Service:
             raise DataNotCorrect
         await file.seek(0)
 
-        hyperelastic_model = await self.isotropic_cache.get_model_params(session_id)
-        hyperelastic_model = HyperelasticModel(hyperelastic_model)
-        self.solver.set_up_solver(hyperelastic_model)
+        params: dict = await self.module_cache.get_model_params(session_id)
+        isotropic_model = IsotropicModelType(params['hyperelastic_model'])
+        self.solver.setup_solver(isotropic_model)
 
-        optimization_params = await self.isotropic_cache.get_optimization_params(session_id)
-        optimization_params = np.array(optimization_params, dtype=np.float32)
-        return self.solver.predict(data, optimization_params)
-
-    async def download_energy(self, session_id: str, background_tasks: BackgroundTasks) -> str:
-        energy_text = await self.calculate_energy(session_id)
-
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=".energy", encoding="utf-8") as temp_file:
-            temp_file.write(energy_text)
-            temp_file_path = temp_file.name
-
-        background_tasks.add_task(os.remove, temp_file_path)
-
-        return temp_file_path
+        fitted_params: dict = (await self.module_cache.get_optimization_params(session_id))['fitted_params']
+        fitted_params = np.array(fitted_params, dtype=np.float32)
+        return self.solver.predict(data, fitted_params)
 
     async def calculate_energy(self, session_id: str) -> str:
         try:
-            hyperelastic_model = await self.isotropic_cache.get_model_params(session_id)
-            optimization_params = await self.isotropic_cache.get_optimization_params(session_id)
-            optimization_params = np.array(optimization_params, dtype=np.float32)
-            logger.info(hyperelastic_model, optimization_params)
-            return energy_text(name=hyperelastic_model, params=optimization_params)
+            params: dict = await self.module_cache.get_model_params(session_id)
+            isotropic_model = params['hyperelastic_model']
+
+            fitted_params: dict = (await self.module_cache.get_optimization_params(session_id))['fitted_params']
+            fitted_params = np.array(fitted_params, dtype=np.float32)
+            logger.info(isotropic_model, fitted_params)
+            return EnergyInfo.energy_text(name=isotropic_model, params=fitted_params)
         except (AttributeError, TypeError):
             raise DataNotFound("Model or optimization parameters not found. Please fit the model first.")
 
     @staticmethod
-    def _validate_and_process_file(filename: str, content: bytes) -> BytesIO:
+    def _validate_and_process_file(filename: str, content: bytes) -> bytes:
 
         buffer = BytesIO(content)
 

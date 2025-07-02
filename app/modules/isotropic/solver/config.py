@@ -1,22 +1,46 @@
-from bidict import bidict
+from enum import Enum
 
-model_name_mapping = bidict({
-    'neohookean': 'Neo-Hookean',
-    'mooney_rivlin': 'Mooney Rivlin',
-    'generalized_mooney_rivlin': 'Generalized Mooney Rivlin',
-    'beda': 'Beda',
-    'yeoh': 'Yeoh',
-    'gent': 'Gent',
-    # 'gent_gent': 'Gent Gent',
-    # 'mod_gent_gent': 'Mod Gent Gent',
-    'carroll': 'Carroll'
-})
+import numpy as np
+import scipy as sp
+from scipy.optimize import Bounds
 
-# error_functions_name = bidict({
-#     "R_abs_err_P": "Absolute error in P",
-#     "R_abs_err_sigma": "Absolute error in σ",  # σ is sigma symbol
-#     "R_rel_err": "Relative error"
-# })
+
+class IsotropicModelType(str, Enum):
+    """Enum for supported anisotropic model types"""
+    NeoHookean = "NeoHookean"
+    MooneyRivlin = "MooneyRivlin"
+    GeneralizedMooneyRivlin = "GeneralizedMooneyRivlin"
+    Beda = "Beda"
+    Yeoh = "Yeoh"
+    Gent = "Gent"
+    Carroll = "Carroll"
+
+
+class IsotropicConstants:
+    """Constants for anisotropic modeling"""
+
+    # Default parameter bounds
+    BOUNDS = {
+        IsotropicModelType.NeoHookean: Bounds([0], [np.inf]),
+        IsotropicModelType.MooneyRivlin: Bounds([0, 0], [np.inf, np.inf]),
+        IsotropicModelType.GeneralizedMooneyRivlin: Bounds([0] * 5, [np.inf] * 5),
+        IsotropicModelType.Beda: Bounds([0, 0, 0, 0, 1, 1, 1], [np.inf] * 7),
+        IsotropicModelType.Yeoh: Bounds([0, 0, 0], [np.inf] * 3),
+        IsotropicModelType.Carroll: Bounds([1e-6, 1e-6], [np.inf, np.inf])
+    }
+
+    # Initial parameter values for optimization
+
+    # Convergence criteria
+    CONVERGENCE_TOLERANCE = 1e-9
+    MAX_ITERATIONS = 1000
+    OPTIMIZER_METHOD = 'L-BFGS-B'
+
+    # Numerical stability
+    NUMERICAL_EPSILON = 1e-12
+
+
 
 if __name__ == "__main__":
-    print(*list(model_name_mapping.values()))
+    # print(*list(model_name_mapping.values()))
+    print(IsotropicModelType.__members__.keys())

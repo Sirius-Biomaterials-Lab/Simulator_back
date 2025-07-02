@@ -8,26 +8,40 @@ from scipy.optimize import minimize
 from sklearn.metrics import r2_score
 
 from app.logger import logger
+from app.modules.isotropic.solver import IsotropicModelType
+from app.modules.isotropic.solver.config import IsotropicConstants
 from app.modules.isotropic.solver.hyperelastic_model import HyperelasticModel
-from app.modules.isotropic.solver.model_loss import TissueModelLossEvaluator
+from app.modules.isotropic.solver.optimizer import TissueModelLossEvaluator
 from app.modules.isotropic.solver.shema import Line, PlotData, Parameter, Metric, IsotropicFitResponse, \
     IsotropicPredictResponse
 from app.modules.isotropic.solver.stress_calculator import StressCalculator
+from app.modules.solver import ModuleSolver
 
 
 @dataclass
-class IsotropicSolver:
+class OptimizationResult:
+    """Result of parameter optimization"""
+    success: bool
+    parameters: list
+    iterations: int
+    message: str
+
+
+@dataclass
+class IsotropicSolver(ModuleSolver):
     lambdas: np.ndarray[float] = field(init=False)
     experimental_data: np.ndarray[float] = field(init=False)
     is_uniaxial: np.ndarray[bool] = field(init=False)
 
     stress_calculator: StressCalculator = field(init=False)
-    optimization_method: str = 'L-BFGS-B'
-    eps: float = 1e-6
+    optimization_method: str = IsotropicConstants.OPTIMIZER_METHOD
+    eps: float = IsotropicConstants.NUMERICAL_EPSILON
+    _fitted_parameters: np.ndarray = field(init=False)
+    _optimization_result: OptimizationResult = field(init=False)
 
-    def set_up_solver(self, hyperelastic_model: HyperelasticModel):
+    def setup_solver(self, isotropic_model: IsotropicModelType):
         logger.info("Initializing symbolic derivatives...")
-        self.hyperelastic_model = hyperelastic_model
+        self.hyperelastic_model = HyperelasticModel(isotropic_model)
         energy_func = self.hyperelastic_model.calculate()
         I1, I2 = sp.symbols('I1 I2')
         self.dW_dI1_func = sp.lambdify((I1, I2, *self.hyperelastic_model.params_sym), energy_func.dW_dI1_sym, 'numpy')
@@ -35,7 +49,7 @@ class IsotropicSolver:
         self.stress_calculator = StressCalculator(self.dW_dI1_func, self.dW_dI2_func)
 
     # def fit_model(self, data: pd.DataFrame, error_function: Callable):
-    def fit_model(self, data: pd.DataFrame):
+    def fit(self, data: pd.DataFrame):
         self.lambdas = data[['lambda_x', 'lambda_y']].values
         self.experimental_data = data[['stress_x_mpa', 'stress_y_mpa']].values
         self.is_uniaxial = np.abs(self.experimental_data[:, 1]) < self.eps
@@ -46,19 +60,39 @@ class IsotropicSolver:
                                                      self.is_uniaxial)
 
         logger.info("Starting optimization...")
+
         result = minimize(
             fun=tissue_model_loss.compute_loss,
             x0=init_params,
             method=self.optimization_method,
-            bounds=self.hyperelastic_model.bounds,
-            options={"maxiter": 1000, "ftol": 1e-9},
+            bounds=IsotropicConstants.BOUNDS[self.hyperelastic_model.model_name],
+            options={"maxiter": IsotropicConstants.MAX_ITERATIONS, "ftol": 1e-9},
         )
         logger.info("Optimization result: success=%s, params=%s", result.success, result.x)
-        return result.x
 
-    def graph_fit(self, optimization_params: np.ndarray):
+        self._fitted_parameters = result.x
+        if result.success:
+            self._optimization_result = OptimizationResult(
+                success=result.success,
+                parameters=list(result.x),
+                iterations=result.nit,
+                message=result.message
+            )
+
+        else:
+            self._optimization_result = OptimizationResult(
+                success=result.success,
+                parameters=init_params,
+                iterations=0,
+                message=f"Optimization failed: {result.message}",
+            )
+        return self._optimization_result
+
+    def graph_fit(self):
+        if not self._optimization_result.success:
+            return IsotropicFitResponse(status="error")
         params = []
-        for value in optimization_params:
+        for value in self._fitted_parameters:
             params.append(Parameter(name='tmp', value=value))
 
         sigma_model_11, sigma_model_22 = [], []
@@ -69,7 +103,7 @@ class IsotropicSolver:
             compute_fn: Callable = (
                 self.stress_calculator.compute_uniaxial if is_uni else self.stress_calculator.compute_biaxial
             )
-            p11, p22 = compute_fn(optimization_params, lam1, lam2)
+            p11, p22 = compute_fn(self._fitted_parameters, lam1, lam2)
 
             sigma_model_11.append(p11)
             sigma_model_22.append(p22)

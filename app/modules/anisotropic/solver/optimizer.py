@@ -104,7 +104,7 @@ class ParameterOptimizer:
                     'disp': True
                 }
             )
-            logger.info(f"Result optimization anisotropic: {result.x}")
+
             # Create result object
             optimized_params = ModelParameters.from_array(result.x, alpha, kappa)
 

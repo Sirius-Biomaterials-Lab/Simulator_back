@@ -63,7 +63,8 @@ class AnisotropicModel(ABC):
         """Get model name"""
         pass
 
-    def _compute_invariants_and_matrices(self, lam1: float, lam2: float, alpha: float) -> tuple:
+    @staticmethod
+    def _compute_invariants_and_matrices(lam1: float, lam2: float, alpha: float) -> tuple:
         """Compute invariants and transformation matrices (common for both models)"""
         # Compute lambda3 from incompressibility
         lam3 = 1.0 / (lam1 * lam2)

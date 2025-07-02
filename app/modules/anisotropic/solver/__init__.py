@@ -7,9 +7,9 @@ This package provides implementations of anisotropic hyperelastic models
 
 from .config import AnisotropicModelType, AnisotropicConstants, AnisotropicModelConfig
 from .models import AnisotropicModel, ModelParameters, GOHModel, HOGModel, ModelFactory
-from .parameter_optimizer import ParameterOptimizer, OptimizationResult
-from .evaluator import ModelEvaluator, EvaluationResult, ComparisonEvaluator
-from .anisotropic_solver import AnisotropicSolver, AnisotropicSolverConfig
+from .optimizer import ParameterOptimizer, OptimizationResult
+from .evaluator import ModelEvaluator, EvaluationResult
+from .solver import AnisotropicSolver, AnisotropicSolverConfig
 
 __all__ = [
     'AnisotropicModelType',
@@ -24,7 +24,6 @@ __all__ = [
     'OptimizationResult',
     'ModelEvaluator',
     'EvaluationResult',
-    'ComparisonEvaluator',
     'AnisotropicSolver',
     'AnisotropicSolverConfig',
 ] 

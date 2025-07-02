@@ -1,3 +1,3 @@
-from app.modules.isotropic.energy.make_energy import energy_text
+from app.modules.isotropic.energy.energy_info import EnergyInfo
 
-__all__ = ['energy_text']
+__all__ = ['EnergyInfo']

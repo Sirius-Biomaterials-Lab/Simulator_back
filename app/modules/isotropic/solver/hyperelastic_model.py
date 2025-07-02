@@ -1,14 +1,20 @@
 import logging
+from dataclasses import dataclass
 from typing import Callable, Optional, List
 
-import numpy as np
 import sympy as sp
-from scipy.optimize import Bounds
 
-from app.modules.isotropic.solver import model_name_mapping
-from app.modules.isotropic.solver.shema import EnergyFunction
+from app.modules.isotropic.solver import IsotropicModelType
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class EnergyFunction:
+
+    W_sym: sp.Expr
+    dW_dI1_sym: sp.Expr
+    dW_dI2_sym: sp.Expr
 
 
 def energy_model(func: Callable) -> Callable:
@@ -28,37 +34,28 @@ class HyperelasticModel:
 
     I1_sym, I2_sym = sp.symbols('I1 I2')
 
-    def __init__(self, model_name: str) -> None:
-        model_name_internal = model_name_mapping.inverse.get(model_name)
-        if model_name_internal is None:
-            raise ValueError(f"Unknown model name alias: {model_name}")
-
-        model_map = {
-            'neohookean': self.neohookean,
-            'mooney_rivlin': self.mooney_rivlin,
-            'generalized_mooney_rivlin': self.generalized_mooney_rivlin,
-            'beda': self.beda,
-            'yeoh': self.yeoh,
-            'gent': self.gent,
-            'gent_gent': self.gent_gent,
-            'mod_gent_gent': self.mod_gent_gent,
-            'carroll': self.carroll
+    def __init__(self, model_name: IsotropicModelType) -> None:
+        _models = {
+            IsotropicModelType.NeoHookean: self.neohookean,
+            IsotropicModelType.MooneyRivlin: self.mooney_rivlin,
+            IsotropicModelType.GeneralizedMooneyRivlin: self.generalized_mooney_rivlin,
+            IsotropicModelType.Beda: self.beda,
+            IsotropicModelType.Yeoh: self.yeoh,
+            IsotropicModelType.Gent: self.gent,
+            # 'gent_gent': self.gent_gent,
+            # 'mod_gent_gent': self.mod_gent_gent,
+            IsotropicModelType.Carroll: self.carroll
         }
 
-        if model_name_internal.lower() not in model_map:
-            raise ValueError(f"Unknown model: {model_name_internal}. Available modules: {', '.join(model_map.keys())}")
-
-        self.model_name: str = model_name_internal.lower()
-        self.energy_func: Callable = model_map[self.model_name]
+        self.model_name = IsotropicModelType(model_name)
+        self.energy_func: Callable = _models[self.model_name]
         self.params_sym: Optional[List[sp.Expr]] = None
-        self.bounds: Optional[Bounds] = None
 
     def calculate(self):
         return self.energy_func()
 
     @energy_model
     def neohookean(self):
-        self.bounds = Bounds([0], [np.inf])
         self.params_sym = sp.symbols('params0:1')
         mu, = self.params_sym
         W = mu / 2 * (self.I1_sym - 3)
@@ -70,7 +67,6 @@ class HyperelasticModel:
 
     @energy_model
     def mooney_rivlin(self):
-        self.bounds = Bounds([0, 0], [np.inf, np.inf])
         self.params_sym = sp.symbols('params0:2')
         c1, c2 = self.params_sym
         W = c1 * (self.I1_sym - 3) + c2 * (self.I2_sym - 3)
@@ -82,7 +78,6 @@ class HyperelasticModel:
 
     @energy_model
     def generalized_mooney_rivlin(self):
-        self.bounds = Bounds([0] * 5, [np.inf] * 5)
         self.params_sym = sp.symbols('params0:5')
         C10, C01, C11, C20, C02 = self.params_sym
         W = (C10 * (self.I1_sym - 3) + C01 * (self.I2_sym - 3) +
@@ -96,7 +91,6 @@ class HyperelasticModel:
 
     @energy_model
     def beda(self):
-        self.bounds = Bounds([0, 0, 0, 0, 1, 1, 1], [np.inf] * 7)
         self.params_sym = sp.symbols('params0:7')
         c1, c2, c3, K1, alpha, ksi, beta = self.params_sym
         epsilon = 1e-8
@@ -110,7 +104,6 @@ class HyperelasticModel:
 
     @energy_model
     def yeoh(self):
-        self.bounds = Bounds([0, 0, 0], [np.inf] * 3)
         self.params_sym = sp.symbols('params0:3')
         c1, c2, c3 = self.params_sym
         W = c1 * (self.I1_sym - 3) + c2 * (self.I1_sym - 3) ** 2 + c3 * (self.I1_sym - 3) ** 3
@@ -122,7 +115,6 @@ class HyperelasticModel:
 
     @energy_model
     def gent(self):
-        self.bounds = Bounds([1e-6, 1e-6], [np.inf, np.inf])
         self.params_sym = sp.symbols('params0:2')
         mu, Jm = self.params_sym
         W = -mu * Jm / 2 * sp.log(1 - (self.I1_sym - 3) / Jm)
@@ -133,46 +125,43 @@ class HyperelasticModel:
         )
 
     @energy_model
-    def gent_gent(self):
-        self.bounds = Bounds([0, 1e-6, 0], [np.inf] * 3)
-        self.params_sym = sp.symbols('params0:3')
-        mu, Jm, c2 = self.params_sym
-        # W = -mu * Jm / 2 * sp.log(1 - (self.I1_sym - 3) / Jm) + c2 * sp.log(self.I2_sym / 3) #старая модель
-        W = -mu * Jm / 2 * sp.log(1 - (self.I1_sym - 3) / Jm)
-        return EnergyFunction(
-            W_sym=W,
-            dW_dI1_sym=sp.diff(W, self.I1_sym),
-            dW_dI2_sym=sp.diff(W, self.I2_sym)
-        )
-
-    @energy_model
-    def mod_gent_gent(self):
-        self.bounds = Bounds([0, 1e-6, 0, 0], [np.inf] * 4)
-        self.params_sym = sp.symbols('params0:4')
-        mu, Jm, c1, c2 = self.params_sym
-        W = (-mu * Jm / 2 * sp.log(1 - (self.I1_sym - 3) / Jm) +
-             c1 * (self.I1_sym - 3) ** 2 + c2 * (self.I2_sym - 3))
-        return EnergyFunction(
-            W_sym=W,
-            dW_dI1_sym=sp.diff(W, self.I1_sym),
-            dW_dI2_sym=sp.diff(W, self.I2_sym)
-        )
-
-    @energy_model
     def carroll(self):
-        self.bounds = Bounds([0, 0, 0], [np.inf] * 3)
         self.params_sym = sp.symbols('params0:3')
         A, B, C = self.params_sym
-        W = A* self.I1_sym + B * (self.I1_sym ** 4) + C * sp.sqrt(self.I2_sym)
+        W = A * self.I1_sym + B * (self.I1_sym ** 4) + C * sp.sqrt(self.I2_sym)
         return EnergyFunction(
             W_sym=W,
             dW_dI1_sym=sp.diff(W, self.I1_sym),
             dW_dI2_sym=sp.diff(W, self.I2_sym)
         )
+
+    # @energy_model
+    # def gent_gent(self):
+    #     self.params_sym = sp.symbols('params0:3')
+    #     mu, Jm, c2 = self.params_sym
+    #     # W = -mu * Jm / 2 * sp.log(1 - (self.I1_sym - 3) / Jm) + c2 * sp.log(self.I2_sym / 3) #старая модель
+    #     W = -mu * Jm / 2 * sp.log(1 - (self.I1_sym - 3) / Jm)
+    #     return EnergyFunction(
+    #         W_sym=W,
+    #         dW_dI1_sym=sp.diff(W, self.I1_sym),
+    #         dW_dI2_sym=sp.diff(W, self.I2_sym)
+    #     )
+    #
+    # @energy_model
+    # def mod_gent_gent(self):
+    #     self.params_sym = sp.symbols('params0:4')
+    #     mu, Jm, c1, c2 = self.params_sym
+    #     W = (-mu * Jm / 2 * sp.log(1 - (self.I1_sym - 3) / Jm) +
+    #          c1 * (self.I1_sym - 3) ** 2 + c2 * (self.I2_sym - 3))
+    #     return EnergyFunction(
+    #         W_sym=W,
+    #         dW_dI1_sym=sp.diff(W, self.I1_sym),
+    #         dW_dI2_sym=sp.diff(W, self.I2_sym)
+    #     )
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
-    model = HyperelasticModel('neohookean')
+    model = HyperelasticModel('NeoHookean')
     result = model.calculate()
     print(result)

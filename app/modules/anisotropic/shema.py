@@ -55,7 +55,6 @@ class AnisotropicMetric(BaseModel):
 
     name: str = Field(..., description="Metric name")
     value: float = Field(..., description="Metric value")
-    direction: Optional[str] = Field(None, description="Direction (P11, P22)")
 
 
 class AnisotropicPlotLine(BaseModel):
@@ -64,8 +63,6 @@ class AnisotropicPlotLine(BaseModel):
     name: str = Field(..., description="Line name")
     x: List[float] = Field(..., description="X coordinates")
     y: List[float] = Field(..., description="Y coordinates")
-    line_type: str = Field("lines", description="Plot line type")
-    color: Optional[str] = Field(None, description="Line color")
 
 
 class AnisotropicPlotData(BaseModel):
@@ -81,18 +78,16 @@ class AnisotropicFitResponse(BaseModel):
     """Response model for fit operation"""
 
     status: str = Field(default="ok", description="Operation status")
-    model_type: str = Field(..., description="Model type used")
     parameters: List[AnisotropicParameterValue] = Field(..., description="Optimized parameters")
     metrics: List[AnisotropicMetric] = Field(..., description="Evaluation metrics")
     plot_data: AnisotropicPlotData = Field(..., description="Plot data")
-    convergence_info: Optional[dict] = Field(None, description="Optimization convergence information")
+    # convergence_info: Optional[dict] = Field(None, description="Optimization convergence information")
 
 
 class AnisotropicPredictResponse(BaseModel):
     """Response model for prediction operation"""
 
     status: str = Field(default="ok", description="Operation status")
-    model_type: str = Field(..., description="Model type used")
     metrics: List[AnisotropicMetric] = Field(..., description="Prediction metrics")
     plot_data: AnisotropicPlotData = Field(..., description="Plot data")
-    predictions: Optional[List[dict]] = Field(None, description="Prediction results")
+    # predictions: Optional[List[dict]] = Field(None, description="Prediction results")
