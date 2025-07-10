@@ -1,28 +1,36 @@
-# Use postgres/example user/password credentials
-version: '3.9'
-
 services:
-
-  db:
-    image: postgres:17.2
-    restart: always
-    # set shared memory limit when using docker-compose
-    shm_size: 128mb
-    # or set shared memory limit when deploy via swarm stack
-    #volumes:
-    #  - type: tmpfs
-    #    target: /dev/shm
-    #    tmpfs:
-    #      size: 134217728 # 128*2^20 bytes = 128Mb
+  web:
+    container_name: web
+    build: .
     ports:
-      - '5432:5432'
-    environment:
-      POSTGRES_PASSWORD: password
-      POSTGRES_USER: postgres
-      POSTGRES_DB: biomed
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - /app/.venv
 
-  cache:
+  #  db:
+  #    image: postgres:17.2
+  #    restart: always
+  #    # set shared memory limit when using docker-compose
+  #    shm_size: 128mb
+  #    # or set shared memory limit when deploy via swarm stack
+  #    #volumes:
+  #    #  - type: tmpfs
+  #    #    target: /dev/shm
+  #    #    tmpfs:
+  #    #      size: 134217728 # 128*2^20 bytes = 128Mb
+  #    ports:
+  #      - '5432:5432'
+  #    environment:
+  #      POSTGRES_PASSWORD: password
+  #      POSTGRES_USER: postgres
+  #      POSTGRES_DB: biomed
+
+  redis:
     image: redis:8.0-M02-alpine
     restart: always
     ports:
       - '6379:6379'
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
