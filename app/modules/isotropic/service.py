@@ -86,7 +86,7 @@ class IsotropicService(ModuleService):
 
             fitted_params: dict = (await self.module_cache.get_optimization_params(session_id))['fitted_params']
             fitted_params = np.array(fitted_params, dtype=np.float32)
-            logger.info(isotropic_model, fitted_params)
+
             return EnergyInfo.energy_text(name=isotropic_model, params=fitted_params)
         except (AttributeError, TypeError):
             raise DataNotFound("Model or optimization parameters not found. Please fit the model first.")
