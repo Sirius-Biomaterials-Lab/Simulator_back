@@ -99,7 +99,7 @@ async def calculate_energy(
         session_id: str = Cookie(alias=settings.COOKIE_SESSION_ID_KEY),
 ):
     try:
-        energy_text = await server.calculate_energy(session_id)
+        energy_text: str = await server.calculate_energy(session_id)
         return PlainTextResponse(content=energy_text, media_type="text/plain")
     except DataNotFound as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
