@@ -46,6 +46,8 @@ services:
       - ./monitoring/promtail-config.yaml:/etc/promtail/config.yml
     command: -config.file=/etc/promtail/config.yml
     privileged: true
+    depends_on:
+      - web
 
   loki:
     image: grafana/loki:latest
@@ -54,6 +56,8 @@ services:
       - "3100:3100"
     volumes:
       - ./monitoring/loki-config.yaml:/etc/loki/local-config.yaml
+    depends_on:
+      - web
 
   prometheus:
     image: prom/prometheus:latest
@@ -63,6 +67,10 @@ services:
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheusdata:/prometheus
+
+    depends_on:
+      - promtail
+      - loki
 
   grafana:
     image: grafana/grafana:latest
